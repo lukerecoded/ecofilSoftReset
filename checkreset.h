@@ -34,6 +34,9 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+#include "../ecofil/structSm.h"
+#include "../ecofil/path.h"
+
 #define DEV_INPUT_EVENT "/dev/input"
 #define EVENT_DEV_NAME "event"
 
@@ -52,30 +55,27 @@ private:
     void readConfigFile();
     int getSharedMemory();
 
-    struct region{
-        uint16_t binStatus[24];     //assicurarsi che nch_bidoni_in<=24
-        uint16_t outCommand[50];
-        double voltageValue;
-        double aiValue[24];
-    };
-    struct region *rptr;
+    struct regionIO *rptr;
     int fd;
 
     int idInputRiavvio;
-    uint16_t resetRequest;
-    uint16_t prevResetRequest;
+    bool resetRequest;
+    bool prevResetRequest;
     bool salvaEvento(QString idevento, QString data);
     void riavviaSistema();
     bool onStartup;
     void CheckResetHardware();
 
-    int idOutputRiavvioHw;
+    int idOutputAlimentazionePannello;
     bool eventoInviato;
 
     int ElapsedTimeForSoftReset = 2000;
     int ElapsedTimeForHwReset = 10000;
     bool timerStarted = false;
     bool riavvioEseguito = false;
+
+    int codiceStazione;
+    int idComune;
 
 private slots:
     void tickSW();

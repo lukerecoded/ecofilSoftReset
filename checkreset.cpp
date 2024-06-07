@@ -11,11 +11,12 @@ checkReset::checkReset(QObject *parent) : QObject(parent)
 
 void checkReset::readConfigFile(){
     idInputRiavvio= -1;
-    QSettings settings("/home/user/ECOFILL/GRD/data/mp.data", QSettings::IniFormat);
-    idInputRiavvio = settings.value("GENERALE/IDINPUTRIAVVIO",idInputRiavvio ).toInt();
-    idOutputRiavvioHw = settings.value("GENERALE/IDOUTPUTRIAVVIO",idOutputRiavvioHw ).toInt();
+    QSettings settings(path::mp(), QSettings::IniFormat);
+    idInputRiavvio = settings.value("DEVICE_D_INPUT/IDINPUTRIAVVIO",idInputRiavvio ).toInt();
+    idOutputAlimentazionePannello = settings.value("DEVICE_D_OUTPUT/RELEALIMENTAZIONEPANNELLO",idOutputAlimentazionePannello ).toInt();
 
-    qDebug() << "idInputRiavvio:"<<idInputRiavvio;
+    codiceStazione= settings.value("GENERALE/ID",-1 ).toInt();
+    idComune = settings.value("GENERALE/IDCOMUNE",-1 ).toInt();
 }
 
 int checkReset::start(){
@@ -84,8 +85,8 @@ void checkReset::CheckResetHardware(){
             salvaEvento("TF","TOUCH NON RILEVATO");
             eventoInviato = true;
         }
-        if(idOutputRiavvioHw > 0){
-            rptr->outCommand[idOutputRiavvioHw]=1;
+        if(idOutputAlimentazionePannello > 0){
+            rptr->outCommand[idOutputAlimentazionePannello]=false;
         }
     }
     else{
@@ -102,17 +103,17 @@ void  checkReset::tickSW(){
 
     //fronte di discesa
     resetRequest = rptr->binStatus[idInputRiavvio];
-    if(resetRequest==1 && !timerStarted){
+    if(resetRequest && !timerStarted){
         elapsedTimer.start();
         timerStarted = true;
     }
-    if(resetRequest==0){
+    if(!resetRequest){
         timerStarted = false;
         riavvioEseguito = false;
     }
     if(onStartup){
-        if(resetRequest == 1){
-            resetRequest = 0;
+        if(resetRequest){
+            resetRequest = false;
             timerStarted = false;
             riavvioEseguito = false;
         }
@@ -120,15 +121,12 @@ void  checkReset::tickSW(){
     }
     else{
         if(timerStarted && elapsedTimer.elapsed()>=ElapsedTimeForSoftReset && !riavvioEseguito){
-
-            if(rptr->binStatus[0] != 1 && rptr->binStatus[2] != 1 && rptr->binStatus[8] != 1){
-                    riavviaSistema();
-                    riavvioEseguito = true;
-             }
+            riavviaSistema();
+            riavvioEseguito = true;
         }
         if(timerStarted && elapsedTimer.elapsed()>=ElapsedTimeForHwReset){
-             if(idOutputRiavvioHw > 0)
-                 rptr->outCommand[idOutputRiavvioHw]=1;
+             if(idOutputAlimentazionePannello > 0)
+                 rptr->outCommand[idOutputAlimentazionePannello]=false;
 
         }
     }
@@ -136,14 +134,9 @@ void  checkReset::tickSW(){
 }
 
 bool checkReset::salvaEvento(QString idevento, QString data){
-    qDebug()<<"salva evento: " << idevento;
     bool ret;
-    QString directoryEventi="/home/user/ECOFILL/GRD/data/eventi/";
-    QSettings settings("/home/user/ECOFILL/GRD/data/mp.data", QSettings::IniFormat);
-    int codicestazione= settings.value("GENERALE/ID",codicestazione ).toInt();
-    int idComune = settings.value("GENERALE/IDCOMUNE",idComune ).toInt();
+    QString directoryEventi=path::directoryEventi();
     QString dataOra = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-
     QString fileName = QDateTime::currentDateTime().toString("yyyyMMddHHmmss").append(".dat");
     //crea la cartella locale se non esiste
     if(!QDir(directoryEventi).exists()){
@@ -159,7 +152,7 @@ bool checkReset::salvaEvento(QString idevento, QString data){
         QTextStream mStream(&file);
         mStream << dataOra << ";" ;
         mStream << QString::number(idComune) << ";";
-        mStream << QString::number(codicestazione) << ";";
+        mStream << QString::number(codiceStazione) << ";";
         mStream << idevento << ";";
         mStream << data << endl;
         file.close();
@@ -173,19 +166,19 @@ bool checkReset::salvaEvento(QString idevento, QString data){
 
 void checkReset::riavviaSistema(){
     qDebug()<<"RICHIESTO RIAVVIO";
-    system("killall grdDataManager");
+    system("killall ecofilDataManager");
     salvaEvento("RESET","");
     QThread::msleep(1000);
     system("reboot");
 }
 
 int checkReset::getSharedMemory(){
-    fd = shm_open("/modbus",O_CREAT | O_RDWR, S_IRUSR | S_IWUSR); //apertura
+    fd = shm_open(smNames::sharedNameIO,O_CREAT | O_RDWR, S_IRUSR | S_IWUSR); //apertura
     if(fd == -1) return -1;
 
-    if(ftruncate(fd,sizeof(struct region)) == -1) return -2;
+    if(ftruncate(fd,sizeof(struct regionIO)) == -1) return -2;
 
-    rptr = (region*) mmap(NULL,sizeof(struct region),PROT_READ | PROT_WRITE, MAP_SHARED, fd,0);
+    rptr = (regionIO*) mmap(NULL,sizeof(struct regionIO),PROT_READ | PROT_WRITE, MAP_SHARED, fd,0);
     if(rptr == MAP_FAILED) return -3;
 
     return 0;
