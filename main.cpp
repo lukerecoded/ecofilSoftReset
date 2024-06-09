@@ -31,7 +31,7 @@ void catchUnixSignals(std::initializer_list<int> quitSignals) {
 
 int main(int argc, char *argv[])
 {
-    qDebug() << "ecofilSoftReset v1.0.1b (21/01/2023)";
+    qDebug() << "ecofilSoftReset v2.0.0 (09/06/2024)";
 
     SingleInstanceApplication a(argc, argv);
     if(!a.lock()){
